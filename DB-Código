@@ -1,0 +1,126 @@
+Create table investidores(
+	id serial primary key,
+	nome varchar(100) not null,
+	cpf varchar(11) unique not null,
+	nivel_experiencia int default 0 check (nivel_experiencia >= 0)
+);
+
+create table carteiras(
+	id serial primary key,
+	investidor_id int references investidores(id),
+	endereco_wallet varchar(100) unique not null,
+	rede_blockchain varchar(50) not null,
+	saldo_usd decimal(10,2) check (saldo_usd > 0) not null,
+	status varchar(20) default 'Ativa' check (status in ('Ativa', 'Em Analise', 'Bloqueada', 'Pausada'))
+);
+
+create table corretoras(
+	id serial primary key,
+	nome_exchange varchar(100) not null,
+	cnpj varchar(14) unique not null,
+	email_suporte varchar(100) unique not null
+);
+
+create table criptomoedas(
+	id serial primary key,
+	corretora_id int references corretoras(id),
+	nome_moeda varchar(100) unique not null,
+	preco_unitario_usd decimal(10,2) check (preco_unitario_usd > 0) not null,
+	categoria varchar(20) default 'Layer1' check (categoria in ('Layer1', 'DeFi', 'Memecoin', 'Stablecoin'))
+);
+
+create table transacoes_cripto(
+	id serial primary key,
+	carteira_id int references corretoras(id),
+	criptomoeda_id int references criptomoedas(id),
+	quantidade decimal(10,2) check (quantidade > 0) not null,
+	valor_pago decimal(10,2) check (valor_pago > 0) not null,
+	data_transacao timestamp default current_timestamp not null
+);
+
+insert into investidores (nome, cpf, nivel_experiencia) values
+('Nathan', '12345678901', 3),
+('Miguel', '63283728429', 1),
+('João', '23273824356', 2),
+('Davi', '89325394534', 1),
+('Nicolas', '47328482385', 3);
+
+insert into carteiras (endereco_wallet, rede_blockchain, saldo_usd, status) values
+('0329x89423r32', 'Ethereum', 2500.00, 'Ativa'),
+('bc1q123456789', 'Bitcoin', 5000.00, 'Em Analise'),
+('273f828347g48', 'Solana', 1200.00, 'Bloqueada'),
+('7yr462347te34', 'Ethereum', 3500.00, 'Ativa'),
+('28x3743y24882', 'Solana', 800.00, 'Pausada');
+
+insert into corretoras (nome_exchange, cnpj, email_suporte) values
+('Rafix', '12345678901234', 'lucas@rafix.com'),
+('Bithub', '38274829472831', 'mario1986@bithub.com'),
+('Snake', '74328657342616', 'rodrigopaixao@snake.com'),
+('Justbit', '83942753842953', 'stuart@justbit.com'),
+('HDSYU', '03918462738427', 'suporterodinei@HDSYU.com');
+
+insert into criptomoedas (nome_moeda, preco_unitario_usd, categoria) values
+('Bitcoin', 30000.10, 'Layer1'),
+('Ethereum', 4000.50, 'Layer1'),
+('Solana', 200.00, 'DeFi'),
+('Viruscoin', 15.50, 'Memecoin'),
+('Dogecoin', 0.50, 'Memecoin');
+
+insert into transacoes_cripto (quantidade, valor_pago) values
+(0.01, 300.00),
+(0.50, 2000.25),
+(5.00, 1000.00),
+(20.00, 310.00),
+(1000.00, 500.00);
+
+select 
+	c.endereco_wallet,
+	c.rede_blockchain,
+	c.saldo_usd,
+	i.nome as investidor,
+	i.cpf
+from carteiras c
+join investidores i on c.investidor_id = i.id
+where c.status in ('Ativa', 'Em Analise');
+
+select
+	co.nome_exchange,
+	sum(t.valor_pago) as total_movimentado
+from transacoes_cripto t
+join criptomoedas cr on t.criptomoeda_id = cr.id
+join corretoras co on cr.corretora_id = co.id
+group by co.nome_exchange;
+
+select 
+	c.endereco_wallet,
+	cr.nome_moeda,
+	t.quantidade,
+	t.valor_pago,
+	t.data_transacao
+from transacoes_cripto t
+join carteiras c on t.carteira_id = c.id
+join criptomoedas cr on t.criptomoeda_id = cr.id
+where t.valor_pago > 500.00
+order by t.valor_pago desc;
+
+create view vw_painel_carteiras as
+select 
+	c.endereco_wallet,
+	c.rede_blockchain,
+	c.status,
+	c.saldo_usd,
+	i.nome as investidor,
+	i.cpf
+from carteiras c
+join investidores i on c.investidor_id = i.id;
+
+create view vw_investimento_total_carteiras as
+select 
+    c.id as carteira_id,
+    c.endereco_wallet,
+    c.saldo_usd,
+    count(t.id) as total_transacoes,
+    coalesce(sum(t.valor_pago), 0) as custo_total
+from carteiras c
+left join transacoes_cripto t on c.id = t.carteira_id
+group by c.id, c.endereco_wallet, c.saldo_usd;
